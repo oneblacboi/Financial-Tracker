@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Financial Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chosen Palette: Warm Neutrals & Teal -->
+    <!-- Application Structure Plan: A dashboard-style layout was chosen for optimal usability. The structure prioritizes immediate insight and ease of use over the original spreadsheet format. The user flow is as follows: 1) A main dashboard view presents key metrics and a visual breakdown for the currently selected month. 2) A prominent dropdown allows the user to switch between months, dynamically updating the entire application. 3) Collapsible accordion sections for Income, Bills, and Expenses provide a clean interface for data entry, preventing user overwhelm. 4) A yearly summary chart offers a high-level trend analysis. This interactive, dashboard-first approach transforms the static data table into a powerful, user-centric financial tool. -->
+    <!-- Visualization & Content Choices: 
+        - Monthly Summary (Inform): Key stats (Income, Expenses, Net Savings) are presented in large 'stat cards' for at-a-glance understanding. They update dynamically with month selection. Method: HTML/JS.
+        - Expense Breakdown (Compare Proportion): A Donut Chart visualizes the ratio of Bills to Living Expenses for the selected month. It's the best choice for showing parts of a whole. Method: Chart.js (Canvas).
+        - Yearly Trend (Show Change): A Line Chart tracks Income vs. Expenses over 12 months, which is the standard and most effective way to visualize trends over time. Method: Chart.js (Canvas).
+        - Data Entry (Organize/Input): The spreadsheet rows are converted into interactive accordion tables with input fields. This organizes the data logically and makes entry intuitive. Accordions are used to avoid a cluttered UI. Method: HTML/Tailwind/JS.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            background-color: #FDFBF7; /* A very light warm neutral */
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .stat-card {
+            background-color: #ffffff;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            transition: transform 0.2s ease-in-out;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .accordion-button {
+            background-color: #ffffff;
+            color: #374151;
+            cursor: pointer;
+            padding: 1.5rem;
+            width: 100%;
+            text-align: left;
+            border: none;
+            border-radius: 0.5rem;
+            outline: none;
+            transition: background-color 0.2s ease;
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+        .accordion-button:hover, .accordion-button.active {
+            background-color: #F0F9FF; /* Light blue */
+        }
+        .accordion-content {
+            padding: 0 1.5rem;
+            background-color: white;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            border-bottom-left-radius: 0.5rem;
+            border-bottom-right-radius: 0.5rem;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+        }
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+    </style>
+     <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Financial Tracker</h1>
+            <p class="text-lg text-gray-500">Your interactive dashboard for managing income and expenses.</p>
+        </header>
+
+        <main>
+            <section id="monthly-dashboard" class="mb-8">
+                <div class="flex flex-col md:flex-row justify-between items-center mb-6 p-4 bg-white rounded-xl shadow-sm">
+                    <h2 class="text-2xl font-semibold text-gray-700 mb-4 md:mb-0">Monthly Snapshot</h2>
+                    <div>
+                        <label for="month-selector" class="mr-2 font-medium text-gray-600">Select Month:</label>
+                        <select id="month-selector" class="p-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
+                        </select>
+                    </div>
+                </div>
+                
+                 <div class="text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                    <p>This section provides a high-level overview of your finances for the month you've selected. Use the dropdown above to navigate through the year. All charts and data will update automatically to reflect your selection.</p>
+                </div>
+
+
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="stat-card lg:col-span-1">
+                        <h3 class="text-gray-500 font-medium">Total Income</h3>
+                        <p id="total-income-stat" class="text-3xl font-bold text-teal-600">£0.00</p>
+                    </div>
+                    <div class="stat-card lg:col-span-1">
+                        <h3 class="text-gray-500 font-medium">Total Expenses</h3>
+                        <p id="total-expenses-stat" class="text-3xl font-bold text-red-500">£0.00</p>
+                    </div>
+                    <div class="stat-card lg:col-span-2">
+                        <h3 class="text-gray-500 font-medium">Net Savings</h3>
+                        <p id="net-savings-stat" class="text-3xl font-bold text-gray-800">£0.00</p>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                    <div class="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm">
+                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Expense Breakdown</h3>
+                        <div class="chart-container mx-auto" style="max-width: 400px;">
+                            <canvas id="expenseDoughnutChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm flex flex-col">
+                         <h3 class="text-xl font-semibold text-gray-700 mb-4">Yearly Trend</h3>
+                         <div class="text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                            <p>This chart displays your total income versus total expenses across the entire year, helping you visualize your financial progress over time.</p>
+                        </div>
+                         <div class="chart-container flex-grow">
+                             <canvas id="yearlyTrendChart"></canvas>
+                         </div>
+                    </div>
+                </div>
+
+            </section>
+
+            <section id="data-entry" class="space-y-4">
+                 <div class="text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
+                    <p>Click on a category below to expand it and enter your financial data for the selected month. The dashboard above will update in real-time as you type.</p>
+                </div>
+                <div id="accordion-container"></div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const months = [
+                "January", "February", "March", "April", "May", "June", 
+                "July", "August", "September", "October", "November", "December"
+            ];
+
+            const categories = [
+                {
+                    name: "Income Sources",
+                    items: ["9-5 Job", "Speaking gigs", "Sponsorships", "Digital products", "Personal allowance", "Free money", "Other"]
+                },
+                {
+                    name: "Bills",
+                    items: ["Monthly rent", "Council Tax", "Electricity bill", "Gas bill", "House insurance", "Car bill", "Water bill", "Insurance", "Other"]
+                },
+                {
+                    name: "Living Expenses",
+                    items: ["Cosmetics", "Clothing", "Nails", "Hair", "Eating out", "Monthly groceries", "Home Expenses", "Personal care", "Transport (Bus)", "Transport (Train)", "Transport (Uber, Bolt)", "Other"]
+                }
+            ];
+
+            let appData = {};
+            let currentMonthIndex = new Date().getMonth();
+            let expenseDoughnutChart, yearlyTrendChart;
+
+            function initializeData() {
+                months.forEach((month, monthIndex) => {
+                    appData[monthIndex] = {};
+                    categories.forEach(category => {
+                        appData[monthIndex][category.name] = {
+                            items: category.items.map(item => ({ name: item, amount: 0, notes: '' })),
+                            total: 0
+                        };
+                    });
+                });
+            }
+
+            function calculateTotals(monthIndex) {
+                const monthData = appData[monthIndex];
+                let totalIncome = 0;
+                let totalBills = 0;
+                let totalLivingExpenses = 0;
+
+                monthData["Income Sources"].items.forEach(item => totalIncome += Number(item.amount));
+                monthData["Bills"].items.forEach(item => totalBills += Number(item.amount));
+                monthData["Living Expenses"].items.forEach(item => totalLivingExpenses += Number(item.amount));
+
+                monthData["Income Sources"].total = totalIncome;
+                monthData["Bills"].total = totalBills;
+                monthData["Living Expenses"].total = totalLivingExpenses;
+                
+                return { totalIncome, totalBills, totalLivingExpenses };
+            }
+
+            function updateAllYearlyTotals() {
+                 months.forEach((_, monthIndex) => {
+                    calculateTotals(monthIndex);
+                });
+            }
+
+            function populateMonthSelector() {
+                const selector = document.getElementById('month-selector');
+                months.forEach((month, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    option.textContent = month;
+                    if (index === currentMonthIndex) {
+                        option.selected = true;
+                    }
+                    selector.appendChild(option);
+                });
+
+                selector.addEventListener('change', renderMonthView);
+            }
+
+            function createAccordion() {
+                const container = document.getElementById('accordion-container');
+                container.innerHTML = ''; 
+
+                categories.forEach((category, catIndex) => {
+                    const monthData = appData[currentMonthIndex][category.name];
+                    const accordionWrapper = document.createElement('div');
+                    
+                    const button = document.createElement('button');
+                    button.className = 'accordion-button flex justify-between items-center';
+                    button.innerHTML = `
+                        <span>${category.name}</span>
+                        <span class="font-semibold text-teal-600" id="${category.name.replace(/\s+/g, '-')}-total">£${monthData.total.toFixed(2)}</span>
+                    `;
+                    
+                    const content = document.createElement('div');
+                    content.className = 'accordion-content';
+
+                    const tableWrapper = document.createElement('div');
+                    tableWrapper.className = 'py-4';
+                    const table = document.createElement('table');
+                    table.className = 'w-full text-left';
+                    table.innerHTML = `
+                        <thead class="border-b-2 border-gray-100">
+                            <tr>
+                                <th class="py-2 pr-2 font-medium text-gray-500">Item</th>
+                                <th class="py-2 px-2 font-medium text-gray-500 w-1/4">Actual (£)</th>
+                                <th class="py-2 pl-2 font-medium text-gray-500 w-1/3">Notes</th>
+                            </tr>
+                        </thead>
+                    `;
+                    const tbody = document.createElement('tbody');
+                    category.items.forEach((item, itemIndex) => {
+                        const rowData = monthData.items[itemIndex];
+                        const row = document.createElement('tr');
+                        row.className = 'border-b border-gray-100';
+                        row.innerHTML = `
+                            <td class="py-3 pr-2 text-gray-700">${item}</td>
+                            <td class="py-2 px-2">
+                                <input type="number" step="0.01" placeholder="0.00"
+                                       class="w-full p-2 border rounded-md focus:ring-1 focus:ring-teal-500"
+                                       data-cat-index="${catIndex}" data-item-index="${itemIndex}" data-field="amount"
+                                       value="${rowData.amount > 0 ? rowData.amount : ''}">
+                            </td>
+                            <td class="py-2 pl-2">
+                                <input type="text" placeholder="Add a note..."
+                                       class="w-full p-2 border rounded-md focus:ring-1 focus:ring-teal-500"
+                                       data-cat-index="${catIndex}" data-item-index="${itemIndex}" data-field="notes"
+                                       value="${rowData.notes}">
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                    table.appendChild(tbody);
+                    tableWrapper.appendChild(table)
+                    content.appendChild(tableWrapper);
+                    
+                    button.addEventListener('click', () => {
+                        button.classList.toggle('active');
+                        const content = button.nextElementSibling;
+                        if (content.style.maxHeight) {
+                            content.style.maxHeight = null;
+                        } else {
+                            content.style.maxHeight = content.scrollHeight + "px";
+                        }
+                    });
+
+                    accordionWrapper.appendChild(button);
+                    accordionWrapper.appendChild(content);
+                    container.appendChild(accordionWrapper);
+                });
+
+                container.querySelectorAll('input').forEach(input => {
+                    input.addEventListener('input', handleInputChange);
+                });
+            }
+            
+            function handleInputChange(e) {
+                const { catIndex, itemIndex, field } = e.target.dataset;
+                const value = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
+
+                appData[currentMonthIndex][categories[catIndex].name].items[itemIndex][field] = value;
+                
+                updateDisplayValues();
+            }
+
+            function updateDisplayValues() {
+                updateAllYearlyTotals();
+                const { totalIncome, totalBills, totalLivingExpenses } = calculateTotals(currentMonthIndex);
+                const totalExpenses = totalBills + totalLivingExpenses;
+                const netSavings = totalIncome - totalExpenses;
+
+                document.getElementById('total-income-stat').textContent = `£${totalIncome.toFixed(2)}`;
+                document.getElementById('total-expenses-stat').textContent = `£${totalExpenses.toFixed(2)}`;
+                document.getElementById('net-savings-stat').textContent = `£${netSavings.toFixed(2)}`;
+                
+                if (netSavings < 0) {
+                    document.getElementById('net-savings-stat').classList.remove('text-gray-800');
+                    document.getElementById('net-savings-stat').classList.add('text-red-500');
+                } else {
+                    document.getElementById('net-savings-stat').classList.add('text-gray-800');
+                    document.getElementById('net-savings-stat').classList.remove('text-red-500');
+                }
+                
+                document.getElementById('Income-Sources-total').textContent = `£${totalIncome.toFixed(2)}`;
+                document.getElementById('Bills-total').textContent = `£${totalBills.toFixed(2)}`;
+                document.getElementById('Living-Expenses-total').textContent = `£${totalLivingExpenses.toFixed(2)}`;
+
+                updateDoughnutChart(totalBills, totalLivingExpenses);
+                updateYearlyTrendChart();
+            }
+
+            function renderMonthView() {
+                currentMonthIndex = parseInt(document.getElementById('month-selector').value);
+                createAccordion();
+                updateDisplayValues();
+            }
+            
+            function initDoughnutChart() {
+                const ctx = document.getElementById('expenseDoughnutChart').getContext('2d');
+                expenseDoughnutChart = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Bills', 'Living Expenses'],
+                        datasets: [{
+                            data: [0, 0],
+                            backgroundColor: ['#F97316', '#0D9488'], // Orange, Teal
+                            borderColor: '#ffffff',
+                            borderWidth: 4,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        cutout: '70%',
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                                labels: {
+                                    padding: 20,
+                                    font: {
+                                        size: 14,
+                                        family: 'Inter'
+                                    }
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        let label = context.label || '';
+                                        if (label) {
+                                            label += ': ';
+                                        }
+                                        if (context.parsed !== null) {
+                                            label += new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(context.parsed);
+                                        }
+                                        return label;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function updateDoughnutChart(bills, living) {
+                if (bills === 0 && living === 0) {
+                    expenseDoughnutChart.data.datasets[0].data = [1, 0]; 
+                } else {
+                    expenseDoughnutChart.data.datasets[0].data = [bills, living];
+                }
+                expenseDoughnutChart.update();
+            }
+
+            function initYearlyTrendChart() {
+                const ctx = document.getElementById('yearlyTrendChart').getContext('2d');
+                yearlyTrendChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: months.map(m => m.substring(0,3)),
+                        datasets: [
+                            {
+                                label: 'Income',
+                                data: [],
+                                borderColor: '#0D9488', // Teal
+                                backgroundColor: 'rgba(13, 148, 136, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                            },
+                            {
+                                label: 'Expenses',
+                                data: [],
+                                borderColor: '#F97316', // Orange
+                                backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                                tension: 0.4,
+                                fill: true,
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: false
+                            },
+                            tooltip: {
+                                mode: 'index',
+                                intersect: false,
+                            },
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) { return '£' + value; }
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            function updateYearlyTrendChart() {
+                const incomeData = [];
+                const expenseData = [];
+                months.forEach((_, index) => {
+                    const monthTotals = appData[index];
+                    incomeData.push(monthTotals["Income Sources"].total);
+                    expenseData.push(monthTotals["Bills"].total + monthTotals["Living Expenses"].total);
+                });
+                yearlyTrendChart.data.datasets[0].data = incomeData;
+                yearlyTrendChart.data.datasets[1].data = expenseData;
+                yearlyTrendChart.update();
+            }
+
+            // --- Initial Load ---
+            initializeData();
+            populateMonthSelector();
+            initDoughnutChart();
+            initYearlyTrendChart();
+            renderMonthView();
+        });
+    </script>
+</body>
+</html>
