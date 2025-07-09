@@ -75,17 +75,79 @@
             -webkit-appearance: none;
             margin: 0;
         }
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #0D9488;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .hidden {
+            display: none;
+        }
     </style>
      <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
+    <div id="loader">
+        <div class="spinner"></div>
+    </div>
 
-    <div class="container mx-auto p-4 md:p-8">
-        <header class="mb-8">
-            <h1 class="text-4xl font-bold text-gray-800 mb-2">Financial Tracker</h1>
-            <p class="text-lg text-gray-500">Your interactive dashboard for managing income and expenses.</p>
+    <div id="auth-container" class="hidden min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+        <div class="max-w-md w-full space-y-8">
+            <div>
+                <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                    Sign in to your account
+                </h2>
+            </div>
+            <div class="rounded-lg bg-white p-8 shadow-lg space-y-6">
+                <div>
+                    <label for="email-address" class="sr-only">Email address</label>
+                    <input id="email-address" name="email" type="email" autocomplete="email" required class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm" placeholder="Email address">
+                </div>
+                <div>
+                    <label for="password" class="sr-only">Password</label>
+                    <input id="password" name="password" type="password" autocomplete="current-password" required class="appearance-none rounded-md relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-teal-500 focus:border-teal-500 focus:z-10 sm:text-sm" placeholder="Password">
+                </div>
+                <p id="auth-error" class="text-red-500 text-sm hidden"></p>
+                <div class="flex flex-col sm:flex-row gap-4">
+                    <button id="login-button" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                        Login
+                    </button>
+                    <button id="signup-button" class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-teal-700 bg-teal-100 hover:bg-teal-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                        Sign Up
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container" class="container mx-auto p-4 md:p-8 hidden">
+        <header class="mb-8 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+            <div>
+                <h1 class="text-4xl font-bold text-gray-800 mb-2">Financial Tracker</h1>
+                <p class="text-lg text-gray-500">Your interactive dashboard for managing income and expenses.</p>
+            </div>
+            <div id="user-info" class="text-right mt-4 sm:mt-0"></div>
         </header>
 
         <main>
@@ -94,15 +156,13 @@
                     <h2 class="text-2xl font-semibold text-gray-700 mb-4 md:mb-0">Monthly Snapshot</h2>
                     <div>
                         <label for="month-selector" class="mr-2 font-medium text-gray-600">Select Month:</label>
-                        <select id="month-selector" class="p-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500">
-                        </select>
+                        <select id="month-selector" class="p-2 border rounded-lg shadow-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"></select>
                     </div>
                 </div>
                 
                  <div class="text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
                     <p>This section provides a high-level overview of your finances for the month you've selected. Use the dropdown above to navigate through the year. All charts and data will update automatically to reflect your selection.</p>
                 </div>
-
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="stat-card lg:col-span-1">
@@ -136,61 +196,128 @@
                          </div>
                     </div>
                 </div>
-
             </section>
 
             <section id="data-entry" class="space-y-4">
                  <div class="text-gray-600 bg-blue-50 border border-blue-200 rounded-lg p-4 mb-2">
-                    <p>Click on a category below to expand it and enter your financial data for the selected month. The dashboard above will update in real-time as you type.</p>
+                    <p>Click on a category below to expand it and enter your financial data for the selected month. Your data is saved automatically.</p>
                 </div>
                 <div id="accordion-container"></div>
             </section>
         </main>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
         document.addEventListener('DOMContentLoaded', function() {
-            const months = [
-                "January", "February", "March", "April", "May", "June", 
-                "July", "August", "September", "October", "November", "December"
-            ];
+           // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyCvK5e3AxaCzpObb3lDNoGV0Q7jsku-SyE",
+  authDomain: "finanacial-tracker.firebaseapp.com",
+  projectId: "finanacial-tracker",
+  storageBucket: "finanacial-tracker.firebasestorage.app",
+  messagingSenderId: "893547071220",
+  appId: "1:893547071220:web:4e3d71f2b3f67ea91e00a1",
+  measurementId: "G-41ERN0NN9M"
+};
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-            const categories = [
-                {
-                    name: "Income Sources",
-                    items: ["9-5 Job", "Speaking gigs", "Sponsorships", "Digital products", "Personal allowance", "Free money", "Other"]
-                },
-                {
-                    name: "Bills",
-                    items: ["Monthly rent", "Council Tax", "Electricity bill", "Gas bill", "House insurance", "Car bill", "Water bill", "Insurance", "Other"]
-                },
-                {
-                    name: "Living Expenses",
-                    items: ["Cosmetics", "Clothing", "Nails", "Hair", "Eating out", "Monthly groceries", "Home Expenses", "Personal care", "Transport (Bus)", "Transport (Train)", "Transport (Uber, Bolt)", "Other"]
-                }
-            ];
+            const app = initializeApp(firebaseConfig);
+            const auth = getAuth(app);
+            const db = getFirestore(app);
 
+            const loader = document.getElementById('loader');
+            const appContainer = document.getElementById('app-container');
+            const authContainer = document.getElementById('auth-container');
+
+            let userEmail;
             let appData = {};
+            let unsubscribe; 
+
+            onAuthStateChanged(auth, (user) => {
+                if (user) {
+                    userEmail = user.email;
+                    document.getElementById('user-info').innerHTML = `
+                        <p class="text-sm text-gray-600 mb-2">Signed in as: <strong>${userEmail}</strong></p>
+                        <button id="signout-button" class="text-sm text-red-500 hover:underline">Sign Out</button>
+                    `;
+                    document.getElementById('signout-button').addEventListener('click', () => signOut(auth));
+                    
+                    authContainer.classList.add('hidden');
+                    appContainer.classList.remove('hidden');
+                    loadUserData();
+                } else {
+                    userEmail = null;
+                    if (unsubscribe) unsubscribe();
+                    appContainer.classList.add('hidden');
+                    authContainer.classList.remove('hidden');
+                    loader.style.display = 'none';
+                }
+            });
+
+            const months = [ "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" ];
+            const categories = [
+                { name: "Income Sources", items: ["9-5 Job", "Speaking gigs", "Sponsorships", "Digital products", "Personal allowance", "Free money", "Other"] },
+                { name: "Bills", items: ["Monthly rent", "Council Tax", "Electricity bill", "Gas bill", "House insurance", "Car bill", "Water bill", "Insurance", "Other"] },
+                { name: "Living Expenses", items: ["Cosmetics", "Clothing", "Nails", "Hair", "Eating out", "Monthly groceries", "Home Expenses", "Personal care", "Transport (Bus)", "Transport (Train)", "Transport (Uber, Bolt)", "Other"] }
+            ];
+
             let currentMonthIndex = new Date().getMonth();
             let expenseDoughnutChart, yearlyTrendChart;
 
-            function initializeData() {
+            function initializeEmptyData() {
+                const emptyData = {};
                 months.forEach((month, monthIndex) => {
-                    appData[monthIndex] = {};
+                    emptyData[monthIndex] = {};
                     categories.forEach(category => {
-                        appData[monthIndex][category.name] = {
+                        emptyData[monthIndex][category.name] = {
                             items: category.items.map(item => ({ name: item, amount: 0, notes: '' })),
                             total: 0
                         };
                     });
                 });
+                return emptyData;
             }
 
+            function loadUserData() {
+                if (!userEmail) return;
+                loader.style.display = 'flex';
+                const docRef = doc(db, "artifacts", appId, "users", userEmail);
+                
+                if (unsubscribe) unsubscribe();
+
+                unsubscribe = onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        appData = JSON.parse(docSnap.data().trackerData);
+                    } else {
+                        appData = initializeEmptyData();
+                        saveUserData(); 
+                    }
+                    renderMonthView();
+                    loader.style.display = 'none';
+                }, (error) => {
+                    console.error("Error listening to document:", error);
+                    loader.style.display = 'none';
+                });
+            }
+
+            async function saveUserData() {
+                if (!userEmail) return;
+                const docRef = doc(db, "artifacts", appId, "users", userEmail);
+                try {
+                    await setDoc(docRef, { trackerData: JSON.stringify(appData) });
+                } catch (error) {
+                    console.error("Error saving data: ", error);
+                }
+            }
+            
             function calculateTotals(monthIndex) {
                 const monthData = appData[monthIndex];
-                let totalIncome = 0;
-                let totalBills = 0;
-                let totalLivingExpenses = 0;
+                if (!monthData) return { totalIncome: 0, totalBills: 0, totalLivingExpenses: 0 };
+                let totalIncome = 0, totalBills = 0, totalLivingExpenses = 0;
 
                 monthData["Income Sources"].items.forEach(item => totalIncome += Number(item.amount));
                 monthData["Bills"].items.forEach(item => totalBills += Number(item.amount));
@@ -204,110 +331,73 @@
             }
 
             function updateAllYearlyTotals() {
-                 months.forEach((_, monthIndex) => {
-                    calculateTotals(monthIndex);
-                });
+                 months.forEach((_, monthIndex) => calculateTotals(monthIndex));
             }
 
             function populateMonthSelector() {
                 const selector = document.getElementById('month-selector');
+                selector.innerHTML = '';
                 months.forEach((month, index) => {
                     const option = document.createElement('option');
                     option.value = index;
                     option.textContent = month;
-                    if (index === currentMonthIndex) {
-                        option.selected = true;
-                    }
+                    if (index === currentMonthIndex) option.selected = true;
                     selector.appendChild(option);
                 });
-
-                selector.addEventListener('change', renderMonthView);
+                selector.addEventListener('change', () => {
+                     currentMonthIndex = parseInt(selector.value);
+                     renderMonthView();
+                });
             }
 
             function createAccordion() {
                 const container = document.getElementById('accordion-container');
                 container.innerHTML = ''; 
+                if (!appData[currentMonthIndex]) return;
 
                 categories.forEach((category, catIndex) => {
                     const monthData = appData[currentMonthIndex][category.name];
                     const accordionWrapper = document.createElement('div');
-                    
                     const button = document.createElement('button');
                     button.className = 'accordion-button flex justify-between items-center';
-                    button.innerHTML = `
-                        <span>${category.name}</span>
-                        <span class="font-semibold text-teal-600" id="${category.name.replace(/\s+/g, '-')}-total">£${monthData.total.toFixed(2)}</span>
-                    `;
+                    button.innerHTML = `<span>${category.name}</span><span class="font-semibold text-teal-600" id="${category.name.replace(/\s+/g, '-')}-total">£${monthData.total.toFixed(2)}</span>`;
                     
                     const content = document.createElement('div');
                     content.className = 'accordion-content';
-
                     const tableWrapper = document.createElement('div');
                     tableWrapper.className = 'py-4';
                     const table = document.createElement('table');
                     table.className = 'w-full text-left';
-                    table.innerHTML = `
-                        <thead class="border-b-2 border-gray-100">
-                            <tr>
-                                <th class="py-2 pr-2 font-medium text-gray-500">Item</th>
-                                <th class="py-2 px-2 font-medium text-gray-500 w-1/4">Actual (£)</th>
-                                <th class="py-2 pl-2 font-medium text-gray-500 w-1/3">Notes</th>
-                            </tr>
-                        </thead>
-                    `;
+                    table.innerHTML = `<thead class="border-b-2 border-gray-100"><tr><th class="py-2 pr-2 font-medium text-gray-500">Item</th><th class="py-2 px-2 font-medium text-gray-500 w-1/4">Actual (£)</th><th class="py-2 pl-2 font-medium text-gray-500 w-1/3">Notes</th></tr></thead>`;
                     const tbody = document.createElement('tbody');
                     category.items.forEach((item, itemIndex) => {
                         const rowData = monthData.items[itemIndex];
                         const row = document.createElement('tr');
                         row.className = 'border-b border-gray-100';
-                        row.innerHTML = `
-                            <td class="py-3 pr-2 text-gray-700">${item}</td>
-                            <td class="py-2 px-2">
-                                <input type="number" step="0.01" placeholder="0.00"
-                                       class="w-full p-2 border rounded-md focus:ring-1 focus:ring-teal-500"
-                                       data-cat-index="${catIndex}" data-item-index="${itemIndex}" data-field="amount"
-                                       value="${rowData.amount > 0 ? rowData.amount : ''}">
-                            </td>
-                            <td class="py-2 pl-2">
-                                <input type="text" placeholder="Add a note..."
-                                       class="w-full p-2 border rounded-md focus:ring-1 focus:ring-teal-500"
-                                       data-cat-index="${catIndex}" data-item-index="${itemIndex}" data-field="notes"
-                                       value="${rowData.notes}">
-                            </td>
-                        `;
+                        row.innerHTML = `<td class="py-3 pr-2 text-gray-700">${item}</td><td class="py-2 px-2"><input type="number" step="0.01" placeholder="0.00" class="w-full p-2 border rounded-md focus:ring-1 focus:ring-teal-500" data-cat-index="${catIndex}" data-item-index="${itemIndex}" data-field="amount" value="${rowData.amount > 0 ? rowData.amount : ''}"></td><td class="py-2 pl-2"><input type="text" placeholder="Add a note..." class="w-full p-2 border rounded-md focus:ring-1 focus:ring-teal-500" data-cat-index="${catIndex}" data-item-index="${itemIndex}" data-field="notes" value="${rowData.notes}"></td>`;
                         tbody.appendChild(row);
                     });
                     table.appendChild(tbody);
                     tableWrapper.appendChild(table)
                     content.appendChild(tableWrapper);
-                    
                     button.addEventListener('click', () => {
                         button.classList.toggle('active');
-                        const content = button.nextElementSibling;
-                        if (content.style.maxHeight) {
-                            content.style.maxHeight = null;
-                        } else {
-                            content.style.maxHeight = content.scrollHeight + "px";
-                        }
+                        const c = button.nextElementSibling;
+                        c.style.maxHeight = c.style.maxHeight ? null : c.scrollHeight + "px";
                     });
-
                     accordionWrapper.appendChild(button);
                     accordionWrapper.appendChild(content);
                     container.appendChild(accordionWrapper);
                 });
-
-                container.querySelectorAll('input').forEach(input => {
-                    input.addEventListener('input', handleInputChange);
-                });
+                container.querySelectorAll('input').forEach(input => input.addEventListener('input', handleInputChange));
             }
             
-            function handleInputChange(e) {
+            async function handleInputChange(e) {
                 const { catIndex, itemIndex, field } = e.target.dataset;
                 const value = e.target.type === 'number' ? parseFloat(e.target.value) || 0 : e.target.value;
-
                 appData[currentMonthIndex][categories[catIndex].name].items[itemIndex][field] = value;
-                
                 updateDisplayValues();
+                await saveUserData();
             }
 
             function updateDisplayValues() {
@@ -320,13 +410,9 @@
                 document.getElementById('total-expenses-stat').textContent = `£${totalExpenses.toFixed(2)}`;
                 document.getElementById('net-savings-stat').textContent = `£${netSavings.toFixed(2)}`;
                 
-                if (netSavings < 0) {
-                    document.getElementById('net-savings-stat').classList.remove('text-gray-800');
-                    document.getElementById('net-savings-stat').classList.add('text-red-500');
-                } else {
-                    document.getElementById('net-savings-stat').classList.add('text-gray-800');
-                    document.getElementById('net-savings-stat').classList.remove('text-red-500');
-                }
+                const netSavingsEl = document.getElementById('net-savings-stat');
+                netSavingsEl.classList.toggle('text-red-500', netSavings < 0);
+                netSavingsEl.classList.toggle('text-gray-800', netSavings >= 0);
                 
                 document.getElementById('Income-Sources-total').textContent = `£${totalIncome.toFixed(2)}`;
                 document.getElementById('Bills-total').textContent = `£${totalBills.toFixed(2)}`;
@@ -337,136 +423,79 @@
             }
 
             function renderMonthView() {
-                currentMonthIndex = parseInt(document.getElementById('month-selector').value);
+                if (Object.keys(appData).length === 0) return;
                 createAccordion();
                 updateDisplayValues();
             }
             
             function initDoughnutChart() {
                 const ctx = document.getElementById('expenseDoughnutChart').getContext('2d');
-                expenseDoughnutChart = new Chart(ctx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: ['Bills', 'Living Expenses'],
-                        datasets: [{
-                            data: [0, 0],
-                            backgroundColor: ['#F97316', '#0D9488'], // Orange, Teal
-                            borderColor: '#ffffff',
-                            borderWidth: 4,
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        cutout: '70%',
-                        plugins: {
-                            legend: {
-                                position: 'bottom',
-                                labels: {
-                                    padding: 20,
-                                    font: {
-                                        size: 14,
-                                        family: 'Inter'
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: function(context) {
-                                        let label = context.label || '';
-                                        if (label) {
-                                            label += ': ';
-                                        }
-                                        if (context.parsed !== null) {
-                                            label += new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(context.parsed);
-                                        }
-                                        return label;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                });
+                if (expenseDoughnutChart) expenseDoughnutChart.destroy();
+                expenseDoughnutChart = new Chart(ctx, { type: 'doughnut', data: { labels: ['Bills', 'Living Expenses'], datasets: [{ data: [0, 0], backgroundColor: ['#F97316', '#0D9488'], borderColor: '#ffffff', borderWidth: 4 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom', labels: { padding: 20, font: { size: 14, family: 'Inter' } } }, tooltip: { callbacks: { label: (c) => `${c.label}: ${new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(c.parsed)}` } } } } });
             }
 
             function updateDoughnutChart(bills, living) {
-                if (bills === 0 && living === 0) {
-                    expenseDoughnutChart.data.datasets[0].data = [1, 0]; 
-                } else {
-                    expenseDoughnutChart.data.datasets[0].data = [bills, living];
-                }
+                if (!expenseDoughnutChart) return;
+                expenseDoughnutChart.data.datasets[0].data = (bills === 0 && living === 0) ? [1, 0] : [bills, living];
                 expenseDoughnutChart.update();
             }
 
             function initYearlyTrendChart() {
                 const ctx = document.getElementById('yearlyTrendChart').getContext('2d');
-                yearlyTrendChart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: months.map(m => m.substring(0,3)),
-                        datasets: [
-                            {
-                                label: 'Income',
-                                data: [],
-                                borderColor: '#0D9488', // Teal
-                                backgroundColor: 'rgba(13, 148, 136, 0.1)',
-                                tension: 0.4,
-                                fill: true,
-                            },
-                            {
-                                label: 'Expenses',
-                                data: [],
-                                borderColor: '#F97316', // Orange
-                                backgroundColor: 'rgba(249, 115, 22, 0.1)',
-                                tension: 0.4,
-                                fill: true,
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        plugins: {
-                            legend: {
-                                display: false
-                            },
-                            tooltip: {
-                                mode: 'index',
-                                intersect: false,
-                            },
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: {
-                                    callback: function(value) { return '£' + value; }
-                                }
-                            }
-                        }
-                    }
-                });
+                if(yearlyTrendChart) yearlyTrendChart.destroy();
+                yearlyTrendChart = new Chart(ctx, { type: 'line', data: { labels: months.map(m => m.substring(0,3)), datasets: [ { label: 'Income', data: [], borderColor: '#0D9488', backgroundColor: 'rgba(13, 148, 136, 0.1)', tension: 0.4, fill: true }, { label: 'Expenses', data: [], borderColor: '#F97316', backgroundColor: 'rgba(249, 115, 22, 0.1)', tension: 0.4, fill: true } ] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } }, scales: { y: { beginAtZero: true, ticks: { callback: (v) => '£' + v } } } } });
             }
 
             function updateYearlyTrendChart() {
-                const incomeData = [];
-                const expenseData = [];
+                if (!yearlyTrendChart) return;
+                const incomeData = [], expenseData = [];
                 months.forEach((_, index) => {
                     const monthTotals = appData[index];
-                    incomeData.push(monthTotals["Income Sources"].total);
-                    expenseData.push(monthTotals["Bills"].total + monthTotals["Living Expenses"].total);
+                    if(monthTotals) {
+                        incomeData.push(monthTotals["Income Sources"].total);
+                        expenseData.push(monthTotals["Bills"].total + monthTotals["Living Expenses"].total);
+                    } else {
+                        incomeData.push(0); expenseData.push(0);
+                    }
                 });
                 yearlyTrendChart.data.datasets[0].data = incomeData;
                 yearlyTrendChart.data.datasets[1].data = expenseData;
                 yearlyTrendChart.update();
             }
 
+            function setupAuthListeners() {
+                const emailInput = document.getElementById('email-address');
+                const passwordInput = document.getElementById('password');
+                const authError = document.getElementById('auth-error');
+
+                document.getElementById('login-button').addEventListener('click', () => {
+                    const email = emailInput.value;
+                    const password = passwordInput.value;
+                    signInWithEmailAndPassword(auth, email, password)
+                        .catch(error => {
+                            authError.textContent = error.message;
+                            authError.classList.remove('hidden');
+                        });
+                });
+
+                document.getElementById('signup-button').addEventListener('click', () => {
+                    const email = emailInput.value;
+                    const password = passwordInput.value;
+                    createUserWithEmailAndPassword(auth, email, password)
+                        .catch(error => {
+                            authError.textContent = error.message;
+                            authError.classList.remove('hidden');
+                        });
+                });
+            }
+
             // --- Initial Load ---
-            initializeData();
             populateMonthSelector();
             initDoughnutChart();
             initYearlyTrendChart();
-            renderMonthView();
+            setupAuthListeners();
         });
     </script>
 </body>
 </html>
+
