@@ -81,11 +81,12 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(255, 255, 255, 0.8);
+            background-color: rgba(253, 251, 247, 0.9);
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 9999;
+            transition: opacity 0.3s ease;
         }
         .spinner {
             border: 8px solid #f3f3f3;
@@ -101,6 +102,15 @@
         }
         .hidden {
             display: none;
+        }
+        .placeholder-glow {
+            animation: glow 1.5s ease-in-out infinite;
+            background-color: #e2e8f0;
+            color: transparent;
+            border-radius: 0.25rem;
+        }
+        @keyframes glow {
+            50% { background-color: #f1f5f9; }
         }
     </style>
      <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -214,15 +224,15 @@
 
         document.addEventListener('DOMContentLoaded', function() {
            // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
-  apiKey: "AIzaSyCvK5e3AxaCzpObb3lDNoGV0Q7jsku-SyE",
-  authDomain: "finanacial-tracker.firebaseapp.com",
-  projectId: "finanacial-tracker",
-  storageBucket: "finanacial-tracker.firebasestorage.app",
-  messagingSenderId: "893547071220",
-  appId: "1:893547071220:web:4e3d71f2b3f67ea91e00a1",
-  measurementId: "G-41ERN0NN9M"
-};
+            const firebaseConfig = {
+              apiKey: "AIzaSyCvK5e3AxaCzpObb3lDNoGV0Q7jsku-SyE",
+              authDomain: "finanacial-tracker.firebaseapp.com",
+              projectId: "finanacial-tracker",
+              storageBucket: "finanacial-tracker.appspot.com",
+              messagingSenderId: "893547071220",
+              appId: "1:893547071220:web:4e3d71f2b3f67ea91e00a1",
+              measurementId: "G-41ERN0NN9M"
+            };
             const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
             const app = initializeApp(firebaseConfig);
@@ -240,21 +250,24 @@ const firebaseConfig = {
             onAuthStateChanged(auth, (user) => {
                 if (user) {
                     userEmail = user.email;
+                    authContainer.classList.add('hidden');
+                    appContainer.classList.remove('hidden');
+                    
                     document.getElementById('user-info').innerHTML = `
                         <p class="text-sm text-gray-600 mb-2">Signed in as: <strong>${userEmail}</strong></p>
                         <button id="signout-button" class="text-sm text-red-500 hover:underline">Sign Out</button>
                     `;
                     document.getElementById('signout-button').addEventListener('click', () => signOut(auth));
                     
-                    authContainer.classList.add('hidden');
-                    appContainer.classList.remove('hidden');
+                    // Show app immediately with placeholder data, then load real data.
+                    renderAppSkeleton();
                     loadUserData();
                 } else {
                     userEmail = null;
                     if (unsubscribe) unsubscribe();
                     appContainer.classList.add('hidden');
                     authContainer.classList.remove('hidden');
-                    loader.style.display = 'none';
+                    hideLoader();
                 }
             });
 
@@ -267,6 +280,16 @@ const firebaseConfig = {
 
             let currentMonthIndex = new Date().getMonth();
             let expenseDoughnutChart, yearlyTrendChart;
+
+            function showLoader() {
+                loader.style.opacity = '1';
+                loader.style.display = 'flex';
+            }
+
+            function hideLoader() {
+                loader.style.opacity = '0';
+                setTimeout(() => { loader.style.display = 'none'; }, 300);
+            }
 
             function initializeEmptyData() {
                 const emptyData = {};
@@ -284,23 +307,27 @@ const firebaseConfig = {
 
             function loadUserData() {
                 if (!userEmail) return;
-                loader.style.display = 'flex';
                 const docRef = doc(db, "artifacts", appId, "users", userEmail);
                 
                 if (unsubscribe) unsubscribe();
 
-                unsubscribe = onSnapshot(docRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        appData = JSON.parse(docSnap.data().trackerData);
-                    } else {
+                unsubscribe = onSnapshot(docRef, { includeMetadataChanges: true }, (docSnap) => {
+                    if (!docSnap.exists()) {
                         appData = initializeEmptyData();
-                        saveUserData(); 
+                        saveUserData();
+                        return;
                     }
-                    renderMonthView();
-                    loader.style.display = 'none';
+
+                    appData = JSON.parse(docSnap.data().trackerData);
+
+                    if (!docSnap.metadata.hasPendingWrites) {
+                        renderMonthView();
+                    }
+                    
+                    hideLoader();
                 }, (error) => {
                     console.error("Error listening to document:", error);
-                    loader.style.display = 'none';
+                    hideLoader();
                 });
             }
 
@@ -428,6 +455,15 @@ const firebaseConfig = {
                 updateDisplayValues();
             }
             
+            function renderAppSkeleton() {
+                document.getElementById('total-income-stat').innerHTML = `<span class="placeholder-glow">£0.00</span>`;
+                document.getElementById('total-expenses-stat').innerHTML = `<span class="placeholder-glow">£0.00</span>`;
+                document.getElementById('net-savings-stat').innerHTML = `<span class="placeholder-glow">£0.00</span>`;
+                populateMonthSelector();
+                initDoughnutChart();
+                initYearlyTrendChart();
+            }
+
             function initDoughnutChart() {
                 const ctx = document.getElementById('expenseDoughnutChart').getContext('2d');
                 if (expenseDoughnutChart) expenseDoughnutChart.destroy();
@@ -471,31 +507,41 @@ const firebaseConfig = {
                 document.getElementById('login-button').addEventListener('click', () => {
                     const email = emailInput.value;
                     const password = passwordInput.value;
+                    if (!email || !password) {
+                        authError.textContent = 'Please enter both email and password.';
+                        authError.classList.remove('hidden');
+                        return;
+                    }
+                    showLoader();
                     signInWithEmailAndPassword(auth, email, password)
                         .catch(error => {
                             authError.textContent = error.message;
                             authError.classList.remove('hidden');
+                            hideLoader();
                         });
                 });
 
                 document.getElementById('signup-button').addEventListener('click', () => {
                     const email = emailInput.value;
                     const password = passwordInput.value;
+                     if (!email || !password) {
+                        authError.textContent = 'Please enter both email and password.';
+                        authError.classList.remove('hidden');
+                        return;
+                    }
+                    showLoader();
                     createUserWithEmailAndPassword(auth, email, password)
                         .catch(error => {
                             authError.textContent = error.message;
                             authError.classList.remove('hidden');
+                            hideLoader();
                         });
                 });
             }
 
             // --- Initial Load ---
-            populateMonthSelector();
-            initDoughnutChart();
-            initYearlyTrendChart();
             setupAuthListeners();
         });
     </script>
 </body>
 </html>
-
